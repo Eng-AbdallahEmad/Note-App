@@ -210,13 +210,13 @@ Client  →  Throttle  →  FormRequest  →  Controller
 
 **Base URL:** `/api/v1`
 
-| Method | Endpoint | Description | Cache |
-|---|---|---|---|
-| `GET` | `/notes` | List all notes (paginated) | Cached 5 min |
-| `POST` | `/notes` | Create a new note | Busts list cache |
-| `GET` | `/notes/{id}` | Get a single note | Cached 1 hour |
-| `PUT` | `/notes/{id}` | Update a note | Busts list + note cache |
-| `DELETE` | `/notes/{id}` | Delete a note | Busts list + note cache |
+| Method | Endpoint | Description | Cache | Rate Limit |
+|---|---|---|---|---|
+| `GET` | `/notes` | List all notes (paginated) | Cached 5 min | 200/min |
+| `GET` | `/notes/{id}` | Get a single note | Cached 1 hour | 200/min |
+| `POST` | `/notes` | Create a new note | Busts list cache | 30/min |
+| `PUT` | `/notes/{id}` | Update a note | Busts list + note cache | 30/min |
+| `DELETE` | `/notes/{id}` | Delete a note | Busts list + note cache | 200/min |
 
 ### Request & Response Examples
 
@@ -342,19 +342,30 @@ REDIS_PORT=6379
 
 ## Rate Limiting
 
-All API routes are wrapped in a throttle middleware defined in `routes/api.php`:
+Read and write operations have separate throttle limits defined in `routes/api.php`:
 
 ```php
-Route::middleware('throttle:100,1')->group(function () {
-    Route::prefix('v1')->group(function () {
-        Route::apiResource('notes', NoteController::class);
-    });
+Route::prefix('v1')->group(function () {
+
+    // Read operations — higher limit
+    Route::apiResource('notes', NoteController::class)
+        ->except(['store', 'update'])
+        ->middleware('throttle:200,1');
+
+    // Write operations — stricter limit
+    Route::apiResource('notes', NoteController::class)
+        ->only(['store', 'update'])
+        ->middleware('throttle:30,1');
 });
 ```
 
-- **100 requests per minute** per IP
-- Returns `429 Too Many Requests` when exceeded
-- Resets automatically after the 1-minute window
+| Operations | Limit | Reason |
+|---|---|---|
+| `index`, `show`, `destroy` | **200 req/min** | Read-heavy — higher tolerance |
+| `store`, `update` | **30 req/min** | Write operations — stricter to prevent abuse |
+
+- Returns `429 Too Many Requests` when either limit is exceeded
+- Each limit resets automatically after the 1-minute window
 
 ---
 
