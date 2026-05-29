@@ -19,7 +19,7 @@ class NoteService
     public function getAll(): LengthAwarePaginator
     {
         $page    = (int) request()->get('page', 1);
-        $version = (int) Cache::get('notes.list.version', 1);
+        $version = (int) Cache::get('notes.list.version', 0);
 
         return Cache::remember("notes.list.v{$version}.page.{$page}", self::LIST_TTL, fn() =>
             $this->repo->getAll()
@@ -57,6 +57,6 @@ class NoteService
 
     private function bustListCache(): void
     {
-        Cache::increment('notes.list.version');
+        Cache::put('notes.list.version', (int) Cache::get('notes.list.version', 0) + 1);
     }
 }

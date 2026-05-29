@@ -89,9 +89,10 @@ public function index(): JsonResponse
 // Service — owns logic and cache
 public function getAll(): LengthAwarePaginator
 {
-    $version = (int) Cache::get('notes.list.version', 1);
     $page    = (int) request()->get('page', 1);
-    return Cache::remember("notes.list.v{$version}.page.{$page}", 300, fn() =>
+    $version = (int) Cache::get('notes.list.version', 0);
+
+    return Cache::remember("notes.list.v{$version}.page.{$page}", self::LIST_TTL, fn() =>
         $this->repo->getAll()
     );
 }
@@ -195,7 +196,7 @@ Client  →  Throttle  →  FormRequest  →  Controller
                                          NoteService
                                          ┌────┴────────┐
                                     Repository      Bust Cache
-                                         │         (increment version)
+                                         │         (put version + 1)
                                       Database
                                          │
                                     NoteResource
@@ -291,16 +292,32 @@ Instead of tracking and deleting individual page cache keys, the project uses a 
 ```
 Cache key = "notes.list.v{version}.page.{page}"
 
-On first load:    notes.list.v1.page.1  ✓ cached
-On second page:   notes.list.v1.page.2  ✓ cached
+On first load:    notes.list.v0.page.1  ✓ cached
+On second page:   notes.list.v0.page.2  ✓ cached
 
 After create / update / delete:
-  → notes.list.version increments to 2
-  → All v1 keys become unreachable (expire naturally after 5 min)
-  → notes.list.v2.page.1  ← fresh cache built on next request
+  → notes.list.version bumped to 1
+  → All v0 keys become unreachable (expire naturally after 5 min)
+  → notes.list.v1.page.1  ← fresh cache built on next request
 ```
 
-This busts all paginated list caches in a single `Cache::increment()` call — no loops, no key tracking, no risk of stale pages.
+This busts all paginated list caches in a single operation — no loops, no key tracking, no risk of stale pages.
+
+### Why `Cache::put` instead of `Cache::increment`
+
+`Cache::increment` on a key that doesn't exist yet sets it to **1**. If the default used in `Cache::get` is also **1**, the version never effectively changes on the first mutation — the list cache stays stale.
+
+The fix uses an explicit `put` to guarantee the version always moves forward:
+
+```php
+// Unsafe — first increment sets key to 1, same as the old default
+Cache::increment('notes.list.version');
+
+// Safe — always reads current value and adds 1 explicitly
+Cache::put('notes.list.version', (int) Cache::get('notes.list.version', 0) + 1);
+```
+
+The version starts at **0** (default), so the first mutation bumps it to **1**, producing a new cache key that is guaranteed to be a miss.
 
 ### Cache TTLs
 
