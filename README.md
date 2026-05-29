@@ -139,27 +139,21 @@ resources/views/
 
 ## Request Flow
 
-Every API request goes through a consistent, predictable flow:
+### Read operation flow (index / show)
 
 ```
 Client Request
       │
       ▼
 ┌─────────────┐
-│  Throttle   │  100 requests / minute — returns 429 if exceeded
-│ Middleware  │
+│  Throttle   │  200 requests / minute — returns 429 if exceeded
+│  (200/min)  │
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│   Router    │  Matches /api/v1/notes/*
+│   Router    │  Matches GET /api/v1/notes/*
 │  api.php    │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ FormRequest │  Validates input — returns 422 if invalid
-│ (if needed) │
 └──────┬──────┘
        │
        ▼
@@ -188,20 +182,57 @@ Client Request
   JSON Response
 ```
 
-### Write operation flow (create / update / delete)
+### Write operation flow (store / update)
 
 ```
-Client  →  Throttle  →  FormRequest  →  Controller
-                                              │
-                                         NoteService
-                                         ┌────┴────────┐
-                                    Repository      Bust Cache
-                                         │         (put version + 1)
-                                      Database
-                                         │
-                                    NoteResource
-                                         │
-                                   JSON Response
+Client Request
+      │
+      ▼
+┌─────────────┐
+│  Throttle   │  30 requests / minute — stricter to prevent abuse
+│  (30/min)   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Router    │  Matches POST or PUT /api/v1/notes/*
+│  api.php    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ FormRequest │  Validates input — returns 422 if invalid
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Controller  │  Delegates to NoteService
+└──────┬──────┘
+       │
+       ▼
+                    NoteService
+                    ┌────┴────────┐
+               Repository      Bust Cache
+                    │         (put version + 1)
+                 Database
+                    │
+               NoteResource
+                    │
+              JSON Response
+```
+
+### Delete operation flow (destroy)
+
+```
+Client  →  Throttle (200/min)  →  Router  →  Controller
+                                                  │
+                                             NoteService
+                                             ┌────┴────────┐
+                                        Repository      Bust Cache
+                                             │         (put version + 1)
+                                          Database
+                                             │
+                                        204 No Content
 ```
 
 ---
