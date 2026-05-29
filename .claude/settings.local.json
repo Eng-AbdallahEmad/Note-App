@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer dump-autoload *)",
+      "Bash(Test-Path c:/xampp/htdocs/notesapi/README.md)"
+    ]
+  }
+}
