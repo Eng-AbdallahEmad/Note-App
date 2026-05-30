@@ -459,6 +459,24 @@ Visit `http://localhost:8000` to open the interactive UI.
 
 ---
 
+## Roadmap
+
+- [ ] User authentication via Laravel Sanctum
+- [ ] Attach tags/labels to notes
+- [ ] Search notes by title or content
+- [ ] Soft delete with restore support
+- [ ] Switch cache driver to Redis
+
+---
+
+## Developer
+
+**Abdallah Emad**
+
+- GitHub: [@Eng-AbdallahEmad](https://github.com/Eng-AbdallahEmad)
+
+---
+
 <div align="center">
   Built with Laravel 12
 </div>
